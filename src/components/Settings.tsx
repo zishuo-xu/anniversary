@@ -6,9 +6,10 @@ interface Props {
   config: Config;
   onSave: (c: Config) => void;
   onReplayCelebration?: () => void;
+  onLogout?: () => void;
 }
 
-export default function Settings({ config, onSave, onReplayCelebration }: Props) {
+export default function Settings({ config, onSave, onReplayCelebration, onLogout }: Props) {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<Config>(config);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -188,6 +189,20 @@ export default function Settings({ config, onSave, onReplayCelebration }: Props)
                     </svg>
                     导入备份
                   </button>
+
+                  {onLogout && (
+                    <>
+                      <div className="flex items-center gap-3 py-2">
+                        <div className="flex-1 h-px bg-white/5" />
+                        <span className="text-white/15 text-[10px] tracking-wider uppercase">账户</span>
+                        <div className="flex-1 h-px bg-white/5" />
+                      </div>
+                      <button onClick={() => { onLogout(); setOpen(false); }}
+                        className="w-full py-3 rounded-xl border border-white/8 text-white/30 hover:bg-white/5 hover:text-white/50 text-sm tracking-wider transition-colors">
+                        退出登录
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
             </div>

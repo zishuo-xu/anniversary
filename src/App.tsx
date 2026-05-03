@@ -3,45 +3,63 @@ import BackgroundSlider from './components/BackgroundSlider';
 import Castle from './components/Castle';
 import CelebrationOverlay from './components/CelebrationOverlay';
 import Fireworks from './components/Fireworks';
+import Login from './components/Login';
 import Settings from './components/Settings';
 import Stars from './components/Stars';
 import TimeDisplay from './components/TimeDisplay';
 import Timeline from './components/Timeline';
-import { load, save, loadTimeline, saveTimeline } from './utils/storage';
+import { isLoggedIn, getConfig, saveConfig, getTimeline, saveTimeline, getCelebrated, saveCelebrated, clearToken } from './api';
+import { getDefault } from './utils/storage';
 import { calcDiff } from './utils/time';
 import type { Config, TimeDiff, TimelineEvent } from './types';
 
 function App() {
-  const [config, setConfig] = useState<Config>(load);
+  const [loggedIn, setLoggedIn] = useState(isLoggedIn());
+  const [config, setConfig] = useState<Config>(getDefault());
   const [celebrating, setCelebrating] = useState(false);
-  const [diff, setDiff] = useState<TimeDiff>(() => calcDiff(new Date(load().startDateTime)));
-  const [timelineEvents, setTimelineEvents] = useState<TimelineEvent[]>(loadTimeline);
+  const [diff, setDiff] = useState<TimeDiff>(calcDiff(new Date(getDefault().startDateTime)));
+  const [timelineEvents, setTimelineEvents] = useState<TimelineEvent[]>([]);
+  const [celebrated, setCelebrated] = useState<number[]>([]);
   const [showTimeline, setShowTimeline] = useState(false);
+  const [loading, setLoading] = useState(true);
   const prevMilestoneRef = useRef<number | null>(null);
 
-  const handleSave = useCallback((c: Config) => {
-    setConfig(c);
-    save(c);
-  }, []);
-
-  const handleSaveTimeline = useCallback((events: TimelineEvent[]) => {
-    setTimelineEvents(events);
-    saveTimeline(events);
-  }, []);
-
-  const triggerCelebration = useCallback((_ms: number) => {
-    setCelebrating(true);
-    setTimeout(() => setCelebrating(false), 60000);
-  }, []);
-
-  const replayCelebration = useCallback(() => {
-    setCelebrating(true);
-    setTimeout(() => setCelebrating(false), 60000);
-  }, []);
-
-  const milestone = diff.totalDays + 1;
-
+  // Load data from backend on mount / login
   useEffect(() => {
+    if (!loggedIn) return;
+    let cancelled = false;
+
+    async function loadAll() {
+      try {
+        const [cfg, tl, cel] = await Promise.all([
+          getConfig(),
+          getTimeline(),
+          getCelebrated(),
+        ]);
+        if (cancelled) return;
+        setConfig(cfg);
+        setTimelineEvents(tl);
+        setCelebrated(cel);
+        setDiff(calcDiff(new Date(cfg.startDateTime)));
+      } catch (err) {
+        console.error('Failed to load data:', err);
+        // Token might be expired
+        if ((err as Error).message.includes('Unauthorized')) {
+          clearToken();
+          setLoggedIn(false);
+        }
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadAll();
+    return () => { cancelled = true; };
+  }, [loggedIn]);
+
+  // Timer tick
+  useEffect(() => {
+    if (!loggedIn || loading) return;
     const start = new Date(config.startDateTime);
 
     const tick = () => {
@@ -50,9 +68,8 @@ function App() {
       const newMilestone = newDiff.totalDays + 1;
       const prev = prevMilestoneRef.current;
 
-      // Only trigger when crossing into a milestone day
       if (prev !== null && prev !== newMilestone) {
-        if (newMilestone >= 100 && newMilestone % 100 === 0) {
+        if (newMilestone >= 100 && newMilestone % 100 === 0 && !celebrated.includes(newMilestone)) {
           triggerCelebration(newMilestone);
         }
       }
@@ -62,7 +79,74 @@ function App() {
     tick();
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
-  }, [config.startDateTime, triggerCelebration]);
+  }, [loggedIn, loading, config.startDateTime, celebrated]);
+
+  const triggerCelebration = useCallback(async (ms: number) => {
+    setCelebrating(true);
+    try {
+      const updated = [...celebrated, ms];
+      setCelebrated(updated);
+      await saveCelebrated(updated);
+    } catch (err) {
+      console.error('Failed to save celebrated:', err);
+    }
+    setTimeout(() => setCelebrating(false), 60000);
+  }, [celebrated]);
+
+  const replayCelebration = useCallback(() => {
+    setCelebrating(true);
+    setTimeout(() => setCelebrating(false), 60000);
+  }, []);
+
+  const handleSaveConfig = useCallback(async (c: Config) => {
+    setConfig(c);
+    try {
+      await saveConfig(c);
+    } catch (err) {
+      console.error('Failed to save config:', err);
+      alert('保存失败，请检查网络');
+    }
+  }, []);
+
+  const handleSaveTimeline = useCallback(async (events: TimelineEvent[]) => {
+    setTimelineEvents(events);
+    try {
+      await saveTimeline(events);
+    } catch (err) {
+      console.error('Failed to save timeline:', err);
+      alert('保存失败，请检查网络');
+    }
+  }, []);
+
+  const handleLogout = useCallback(() => {
+    clearToken();
+    setLoggedIn(false);
+    setLoading(true);
+  }, []);
+
+  const milestone = diff.totalDays + 1;
+
+  if (!loggedIn) {
+    return <Login onSuccess={() => setLoggedIn(true)} />;
+  }
+
+  if (loading) {
+    return (
+      <div className="fixed inset-0 z-[100] flex items-center justify-center"
+        style={{
+          background: 'linear-gradient(180deg, #0a0a2e 0%, #1a0a3e 40%, #2d1b4e 80%, #0d0d35 100%)',
+        }}
+      >
+        <div className="flex flex-col items-center gap-3"
+          style={{ animation: 'float 3s ease-in-out infinite' }}
+        >
+          <div className="w-6 h-6 rounded-full border-2 border-purple-400/30 border-t-purple-400/80 animate-spin" />
+          <p className="text-white/30 text-xs tracking-wider"
+          >加载中...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="relative h-full w-full overflow-hidden">
@@ -97,7 +181,7 @@ function App() {
       )}
 
       {/* Layer 7: settings */}
-      <Settings config={config} onSave={handleSave} onReplayCelebration={replayCelebration} />
+      <Settings config={config} onSave={handleSaveConfig} onReplayCelebration={replayCelebration} onLogout={handleLogout} />
 
       {/* Timeline entry button */}
       {!showTimeline && (
