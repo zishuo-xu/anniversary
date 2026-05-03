@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import type { Config } from '../types';
 import { triggerExport, importAll } from '../utils/storage';
 
@@ -9,11 +9,33 @@ interface Props {
   onLogout?: () => void;
 }
 
+function isoToDateTime(iso: string): { date: string; time: string } {
+  if (!iso || iso.length < 10) return { date: '', time: '' };
+  return { date: iso.slice(0, 10), time: iso.slice(11, 16) };
+}
+
+function combineDateTime(date: string, time: string): string {
+  const t = time || '00:00';
+  const d = date || new Date().toISOString().slice(0, 10);
+  return `${d}T${t}:00`;
+}
+
 export default function Settings({ config, onSave, onReplayCelebration, onLogout }: Props) {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<Config>(config);
+  const [datePart, setDatePart] = useState('');
+  const [timePart, setTimePart] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
   const importRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (open) {
+      setForm(config);
+      const { date, time } = isoToDateTime(config.startDateTime);
+      setDatePart(date);
+      setTimePart(time);
+    }
+  }, [open, config]);
 
   const handleFile = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -51,18 +73,17 @@ export default function Settings({ config, onSave, onReplayCelebration, onLogout
   }, []);
 
   const handleSave = () => {
-    const start = new Date(form.startDateTime);
+    const startDateTime = combineDateTime(datePart, timePart);
+    const updated = { ...form, startDateTime };
+    const start = new Date(startDateTime);
     const now = new Date();
     if (start > now) {
       alert('起始日期不能晚于当前时间');
       return;
     }
-    onSave(form);
+    onSave(updated);
     setOpen(false);
   };
-
-  const dateStr = form.startDateTime.slice(0, 10);
-  const timeStr = form.startDateTime.slice(11, 16);
 
   return (
     <>
@@ -107,14 +128,14 @@ export default function Settings({ config, onSave, onReplayCelebration, onLogout
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-[11px] text-white/30 mb-2 tracking-wider uppercase">起始日期</label>
-                    <input type="date" value={dateStr}
-                      onChange={(e) => setForm((p) => ({ ...p, startDateTime: `${e.target.value}T${timeStr || '00:00'}:00` }))}
+                    <input type="date" value={datePart}
+                      onChange={(e) => setDatePart(e.target.value)}
                       className="w-full px-4 py-2.5 rounded-xl border border-white/8 bg-white/5 text-white/80 focus:outline-none focus:ring-1 focus:ring-purple-500/40 text-sm" />
                   </div>
                   <div>
                     <label className="block text-[11px] text-white/30 mb-2 tracking-wider uppercase">起始时间</label>
-                    <input type="time" value={timeStr}
-                      onChange={(e) => setForm((p) => ({ ...p, startDateTime: `${dateStr || new Date().toISOString().slice(0, 10)}T${e.target.value}:00` }))}
+                    <input type="time" value={timePart}
+                      onChange={(e) => setTimePart(e.target.value)}
                       className="w-full px-4 py-2.5 rounded-xl border border-white/8 bg-white/5 text-white/80 focus:outline-none focus:ring-1 focus:ring-purple-500/40 text-sm" />
                   </div>
                 </div>
