@@ -1,6 +1,7 @@
-import type { Config } from '../types';
+import type { Config, TimelineEvent } from '../types';
 
 const KEY = 'anniv_config_v2';
+const TIMELINE_KEY = 'anniv_timeline_v1';
 
 export function getDefault(): Config {
   const today = new Date();
@@ -28,4 +29,18 @@ export function load(): Config {
 
 export function save(c: Config) {
   localStorage.setItem(KEY, JSON.stringify(c));
+}
+
+export function loadTimeline(): TimelineEvent[] {
+  try {
+    const raw = localStorage.getItem(TIMELINE_KEY);
+    if (!raw) return [];
+    return JSON.parse(raw) as TimelineEvent[];
+  } catch {
+    return [];
+  }
+}
+
+export function saveTimeline(events: TimelineEvent[]) {
+  localStorage.setItem(TIMELINE_KEY, JSON.stringify(events));
 }

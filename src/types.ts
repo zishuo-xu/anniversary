@@ -16,3 +16,12 @@ export interface TimeDiff {
   seconds: number;
   totalDays: number;
 }
+
+export interface TimelineEvent {
+  id: string;
+  date: string; // YYYY-MM-DD
+  title: string;
+  location: string;
+  description: string;
+  photos: string[];
+}
