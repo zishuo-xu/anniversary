@@ -157,7 +157,7 @@ function App() {
       <div
         className="absolute inset-0 z-[1]"
         style={{
-          background: 'radial-gradient(ellipse at 50% 20%, rgba(20, 10, 60, 0.4) 0%, rgba(5, 5, 16, 0.7) 60%, rgba(5, 5, 16, 0.9) 100%)',
+          background: 'radial-gradient(ellipse at 50% 20%, rgba(20, 10, 60, 0.25) 0%, rgba(5, 5, 16, 0.45) 60%, rgba(5, 5, 16, 0.6) 100%)',
         }}
       />
 

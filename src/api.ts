@@ -20,7 +20,9 @@ async function req<T>(path: string, options?: RequestInit): Promise<T> {
     headers: { ...headers(), ...(options?.headers || {}) },
   });
   if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
+    const text = await res.text().catch(() => '');
+    let err;
+    try { err = JSON.parse(text); } catch { err = {}; }
     throw new Error(err.error || `HTTP ${res.status}`);
   }
   return res.json() as Promise<T>;
@@ -85,4 +87,21 @@ export async function saveCelebrated(milestones: number[]): Promise<void> {
     method: 'POST',
     body: JSON.stringify({ milestones }),
   });
+}
+
+export async function uploadPhoto(file: File): Promise<string> {
+  const token = getToken();
+  const formData = new FormData();
+  formData.append('file', file);
+  const res = await fetch('/api/upload', {
+    method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: formData,
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(text.slice(0, 100));
+  }
+  const data = await res.json() as { url: string };
+  return data.url;
 }

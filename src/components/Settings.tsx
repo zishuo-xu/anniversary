@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import type { Config } from '../types';
+import { uploadPhoto } from '../api';
 import { triggerExport, importAll } from '../utils/storage';
 
 interface Props {
@@ -37,18 +38,24 @@ export default function Settings({ config, onSave, onReplayCelebration, onLogout
     }
   }, [open, config]);
 
-  const handleFile = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+  const [uploading, setUploading] = useState(false);
+
+  const handleFile = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files) return;
-    Array.from(files).forEach((file) => {
-      if (file.size > 5 * 1024 * 1024) return;
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        const result = ev.target?.result as string;
-        setForm((p) => ({ ...p, photos: [...p.photos, result] }));
-      };
-      reader.readAsDataURL(file);
-    });
+    setUploading(true);
+    try {
+      for (const file of Array.from(files)) {
+        if (file.size > 5 * 1024 * 1024) continue;
+        const url = await uploadPhoto(file);
+        setForm((p) => ({ ...p, photos: [...p.photos, url] }));
+      }
+    } catch (err) {
+      alert(err instanceof Error ? err.message : '上传失败');
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = '';
+    }
   }, []);
 
   const removePhoto = (i: number) => {
@@ -150,9 +157,21 @@ export default function Settings({ config, onSave, onReplayCelebration, onLogout
                   <label className="block text-[11px] text-white/30 mb-2 tracking-wider uppercase">背景照片</label>
                   <input ref={fileRef} type="file" accept="image/*" multiple onChange={handleFile} className="hidden" />
                   <button onClick={() => fileRef.current?.click()}
-                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-dashed border-white/10 bg-white/3 text-white/30 hover:border-purple-400/40 hover:bg-purple-500/5 hover:text-white/50 transition-all text-sm">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" x2="12" y1="3" y2="15" /></svg>
-                    上传照片（可多选）
+                    disabled={uploading}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-dashed border-white/10 bg-white/3 text-white/30 hover:border-purple-400/40 hover:bg-purple-500/5 hover:text-white/50 transition-all text-sm disabled:opacity-40"
+                  >
+                    {uploading ? (
+                      <>
+                        <div className="w-3.5 h-3.5 rounded-full border border-white/20 border-t-white/60 animate-spin" />
+                        上传中...
+                      </>
+                    ) : (
+                      <>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"
+                        ><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" x2="12" y1="3" y2="15" /></svg>
+                        上传照片（可多选）
+                      </>
+                    )}
                   </button>
 
                   {form.photos.length > 0 && (

@@ -2,14 +2,50 @@ import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
 import db from './db.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 const JWT_SECRET = process.env.JWT_SECRET || 'anniversary-secret-key';
 
+// Ensure uploads dir exists
+const UPLOADS_DIR = path.join(__dirname, 'uploads');
+if (!fs.existsSync(UPLOADS_DIR)) {
+  fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+}
+
 app.use(cors());
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ limit: '1mb' }));
+app.use('/uploads', express.static(UPLOADS_DIR));
+
+// ---- Multer config ----
+const storage = multer.diskStorage({
+  destination: (_req, _file, cb) => {
+    cb(null, UPLOADS_DIR);
+  },
+  filename: (_req, file, cb) => {
+    const ext = path.extname(file.originalname) || '.jpg';
+    const name = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}${ext}`;
+    cb(null, name);
+  },
+});
+const upload = multer({
+  storage,
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files allowed'));
+    }
+  },
+});
 
 // ---- Auth middleware ----
 interface AuthRequest extends Request {
@@ -97,6 +133,16 @@ app.post('/api/change-password', auth, (req: AuthRequest, res: Response) => {
   const hash = bcrypt.hashSync(newPassword, 10);
   db.prepare('UPDATE users SET password_hash = ? WHERE username = ?').run(hash, username);
   res.json({ success: true });
+});
+
+// ---- Upload route ----
+app.post('/api/upload', auth, upload.single('file'), (req: AuthRequest, res: Response) => {
+  if (!req.file) {
+    res.status(400).json({ error: 'No file uploaded' });
+    return;
+  }
+  const url = `/uploads/${req.file.filename}`;
+  res.json({ url });
 });
 
 // ---- Config routes ----

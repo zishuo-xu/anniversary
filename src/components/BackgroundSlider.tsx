@@ -50,7 +50,7 @@ export default function BackgroundSlider({ photos }: { photos: string[] }) {
       <div
         className="absolute inset-0"
         style={{
-          background: 'linear-gradient(180deg, rgba(5,5,16,0.3) 0%, rgba(10,10,30,0.5) 50%, rgba(5,5,16,0.7) 100%)',
+          background: 'linear-gradient(180deg, rgba(5,5,16,0.15) 0%, rgba(10,10,30,0.3) 50%, rgba(5,5,16,0.45) 100%)',
         }}
       />
     </div>
