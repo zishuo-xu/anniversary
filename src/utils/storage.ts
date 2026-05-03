@@ -44,3 +44,58 @@ export function loadTimeline(): TimelineEvent[] {
 export function saveTimeline(events: TimelineEvent[]) {
   localStorage.setItem(TIMELINE_KEY, JSON.stringify(events));
 }
+
+export interface BackupData {
+  version: number;
+  exportedAt: string;
+  config: Config;
+  timeline: TimelineEvent[];
+  celebrated: number[];
+}
+
+export function exportAll(): string {
+  const celebratedKey = 'anniv_celebrated_v3';
+  const data: BackupData = {
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    config: load(),
+    timeline: loadTimeline(),
+    celebrated: JSON.parse(localStorage.getItem(celebratedKey) || '[]'),
+  };
+  return JSON.stringify(data, null, 2);
+}
+
+export function triggerExport() {
+  const json = exportAll();
+  const blob = new Blob([json], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  const date = new Date().toISOString().slice(0, 10);
+  a.download = `anniversary-backup-${date}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+export function importAll(jsonText: string): boolean {
+  try {
+    const parsed = JSON.parse(jsonText) as Partial<BackupData>;
+    if (!parsed.config && !parsed.timeline) {
+      throw new Error('Invalid backup file');
+    }
+    if (parsed.config) {
+      save({ ...getDefault(), ...parsed.config });
+    }
+    if (parsed.timeline) {
+      saveTimeline(parsed.timeline);
+    }
+    if (parsed.celebrated) {
+      localStorage.setItem('anniv_celebrated_v3', JSON.stringify(parsed.celebrated));
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}

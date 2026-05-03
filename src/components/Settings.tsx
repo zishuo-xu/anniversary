@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback } from 'react';
 import type { Config } from '../types';
+import { triggerExport, importAll } from '../utils/storage';
 
 interface Props {
   config: Config;
@@ -11,6 +12,7 @@ export default function Settings({ config, onSave, onReplayCelebration }: Props)
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<Config>(config);
   const fileRef = useRef<HTMLInputElement>(null);
+  const importRef = useRef<HTMLInputElement>(null);
 
   const handleFile = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -29,6 +31,23 @@ export default function Settings({ config, onSave, onReplayCelebration }: Props)
   const removePhoto = (i: number) => {
     setForm((p) => ({ ...p, photos: p.photos.filter((_, idx) => idx !== i) }));
   };
+
+  const handleImport = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const text = ev.target?.result as string;
+      if (importAll(text)) {
+        alert('导入成功，页面即将刷新');
+        window.location.reload();
+      } else {
+        alert('导入失败，文件格式不正确');
+      }
+      if (importRef.current) importRef.current.value = '';
+    };
+    reader.readAsText(file);
+  }, []);
 
   const handleSave = () => {
     const start = new Date(form.startDateTime);
@@ -141,6 +160,34 @@ export default function Settings({ config, onSave, onReplayCelebration }: Props)
                       重新播放庆祝烟花
                     </button>
                   )}
+
+                  {/* Divider */}
+                  <div className="flex items-center gap-3 py-2">
+                    <div className="flex-1 h-px bg-white/5" />
+                    <span className="text-white/15 text-[10px] tracking-wider uppercase">数据</span>
+                    <div className="flex-1 h-px bg-white/5" />
+                  </div>
+
+                  <button onClick={triggerExport}
+                    className="w-full py-3 rounded-xl border border-white/8 text-white/30 hover:bg-white/5 hover:text-white/50 text-sm tracking-wider transition-colors flex items-center justify-center gap-2">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                      <polyline points="7 10 12 15 17 10" />
+                      <line x1="12" x2="12" y1="15" y2="3" />
+                    </svg>
+                    导出备份
+                  </button>
+
+                  <input ref={importRef} type="file" accept=".json" className="hidden" onChange={handleImport} />
+                  <button onClick={() => importRef.current?.click()}
+                    className="w-full py-3 rounded-xl border border-white/8 text-white/30 hover:bg-white/5 hover:text-white/50 text-sm tracking-wider transition-colors flex items-center justify-center gap-2">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                      <polyline points="17 8 12 3 7 8" />
+                      <line x1="12" x2="12" y1="3" y2="15" />
+                    </svg>
+                    导入备份
+                  </button>
                 </div>
               </div>
             </div>
