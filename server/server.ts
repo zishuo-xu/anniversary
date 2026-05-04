@@ -3,6 +3,8 @@ import cors from 'cors';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import multer from 'multer';
+import sharp from 'sharp';
+import { fileTypeFromFile } from 'file-type';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
@@ -136,13 +138,45 @@ app.post('/api/change-password', auth, (req: AuthRequest, res: Response) => {
 });
 
 // ---- Upload route ----
-app.post('/api/upload', auth, upload.single('file'), (req: AuthRequest, res: Response) => {
+app.post('/api/upload', auth, upload.single('file'), async (req: AuthRequest, res: Response) => {
   if (!req.file) {
     res.status(400).json({ error: 'No file uploaded' });
     return;
   }
-  const url = `/uploads/${req.file.filename}`;
-  res.json({ url });
+
+  const inputPath = req.file.path;
+
+  try {
+    // Detect actual file type (not extension)
+    const fileType = await fileTypeFromFile(inputPath);
+    if (fileType && (fileType.mime === 'image/heif' || fileType.mime === 'image/heic')) {
+      fs.unlinkSync(inputPath);
+      res.status(400).json({ error: 'HEIF/HEIC 格式不受浏览器支持，请转换为 JPEG 后上传' });
+      return;
+    }
+
+    const parsed = path.parse(req.file.filename);
+    const outputName = `${parsed.name}.jpg`;
+    const outputPath = path.join(UPLOADS_DIR, outputName);
+
+    // Convert to JPEG (auto-rotate, compress)
+    await sharp(inputPath)
+      .rotate()
+      .jpeg({ quality: 85, progressive: true })
+      .toFile(outputPath);
+
+    // Remove original
+    if (fs.existsSync(inputPath)) {
+      fs.unlinkSync(inputPath);
+    }
+
+    const url = `/uploads/${outputName}`;
+    res.json({ url });
+  } catch (err) {
+    if (fs.existsSync(inputPath)) fs.unlinkSync(inputPath);
+    console.error('Image conversion error:', err);
+    res.status(500).json({ error: 'Image processing failed' });
+  }
 });
 
 // ---- Config routes ----
